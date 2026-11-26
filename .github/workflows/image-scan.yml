@@ -56,11 +56,11 @@ jobs:
           docker run --rm -v "$RUNNER_TEMP:/scan:ro" "$GRYPE_IMAGE" \
             docker-archive:/scan/image.tar --by-cve --only-fixed --fail-on high -o table
 
-      - name: Scan the released image (ghcr.io/vericto/vericto-proxy:latest)
+      - name: Scan the released image (ghcr.io/${{ github.repository }}:latest)
         if: ${{ !cancelled() }}
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |
           docker run --rm "$GRYPE_IMAGE" \
-            registry:ghcr.io/vericto/vericto-proxy:latest --platform "$PLATFORM" \
+            registry:ghcr.io/${{ github.repository }}:latest --platform "$PLATFORM" \
             --by-cve --only-fixed --fail-on high -o table
