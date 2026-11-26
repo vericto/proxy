@@ -1,0 +1,11 @@
+# cargo-audit's own config. cargo-deny does not read it and cargo-audit does not
+# read deny.toml, so an advisory that has to be excepted has to be listed in both
+# (ci.yml runs `cargo deny --locked check` and `cargo audit --deny warnings`).
+# Keep this list and deny.toml's `[advisories] ignore` in step.
+
+[advisories]
+ignore = [
+  # chrono is unmaintained and every version is affected, so there is no upgrade to
+  # take. See the reason and the review date in deny.toml.
+  "RUSTSEC-2026-0543",
+]
