@@ -8,6 +8,12 @@ name: Weekly image scan
 # A failure on the rebuilt image means the pinned base digest is behind (merge the
 # Dependabot `chore(docker)` PR, or bump it by hand); a failure on the released
 # image only means a patch release is due. Nothing is pushed.
+#
+# The released image is skipped, with a notice, when there is nothing published at
+# that path yet. Otherwise a missing image fails the run exactly like a fixable
+# Critical would, which is the opposite of what the gate is for — and it is not
+# hypothetical: renaming this repository moved the publish path, so nothing exists
+# at the new one until the next release.
 on:
   schedule:
     - cron: "17 6 * * 1" # Mondays 06:17 UTC
@@ -15,6 +21,7 @@ on:
 
 permissions:
   contents: read
+  packages: read   # resolving whether the released image exists
 
 jobs:
   scan:
@@ -56,11 +63,28 @@ jobs:
           docker run --rm -v "$RUNNER_TEMP:/scan:ro" "$GRYPE_IMAGE" \
             docker-archive:/scan/image.tar --by-cve --only-fixed --fail-on high -o table
 
-      - name: Scan the released image (ghcr.io/vericto/vericto-proxy:latest)
+      # `latest` follows the repository name, so this is empty until the first
+      # release after a rename. Distinguish that from a real finding.
+      - name: Is there a released image to scan?
+        id: released
         if: ${{ !cancelled() }}
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}:latest
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          if docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=No released image::$IMAGE does not exist, so only the rebuilt image was scanned. The next release publishes it."
+          fi
+
+      - name: Scan the released image (ghcr.io/${{ github.repository }}:latest)
+        if: ${{ !cancelled() && steps.released.outputs.exists == 'true' }}
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |
           docker run --rm "$GRYPE_IMAGE" \
-            registry:ghcr.io/vericto/vericto-proxy:latest --platform "$PLATFORM" \
+            registry:ghcr.io/${{ github.repository }}:latest --platform "$PLATFORM" \
             --by-cve --only-fixed --fail-on high -o table

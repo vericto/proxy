@@ -7,11 +7,13 @@
 # Dependabot branch.
 #
 # Token: a commit pushed with GITHUB_TOKEN does not start new workflow runs, so the
-# required checks would never run on the new head. The push therefore uses the
-# Dependabot secret NOTICES_PUSH_TOKEN (Settings → Secrets and variables →
-# Dependabot): a fine-grained token limited to vericto/vericto-proxy with
-# Contents: read and write. Without that secret the job fails with a clear
-# message instead of pushing a commit that CI would not check.
+# required checks would never run on the new head. The push therefore uses an
+# installation token of the `vericto-publisher` GitHub App, minted per run from
+# PUBLISHER_APP_ID and PUBLISHER_PRIVATE_KEY (Settings → Secrets and variables →
+# Dependabot). The App holds Contents: read and write on this repository only. It
+# replaced a fine-grained PAT, which GitHub caps at 366 days: the App's private key
+# does not expire, so nothing has to be rotated on a calendar. Without those secrets
+# the job fails with a clear message instead of pushing a commit CI would not check.
 #
 # Safety: runs only for dependabot[bot] on branches of this repository (never a
 # fork), and only commits THIRD_PARTY_LICENSES.
@@ -41,19 +43,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Require the push token
+      - name: Require the App credentials
         env:
-          NOTICES_PUSH_TOKEN: ${{ secrets.NOTICES_PUSH_TOKEN }}
+          PUBLISHER_APP_ID: ${{ secrets.PUBLISHER_APP_ID }}
+          PUBLISHER_PRIVATE_KEY: ${{ secrets.PUBLISHER_PRIVATE_KEY }}
         run: |
-          if [ -z "$NOTICES_PUSH_TOKEN" ]; then
-            echo "::error::Dependabot secret NOTICES_PUSH_TOKEN is not set; run 'sh third-party/build-notices.sh THIRD_PARTY_LICENSES' on this branch by hand."
+          if [ -z "$PUBLISHER_APP_ID" ] || [ -z "$PUBLISHER_PRIVATE_KEY" ]; then
+            echo "::error::Dependabot secrets PUBLISHER_APP_ID and PUBLISHER_PRIVATE_KEY are not both set; run 'sh third-party/build-notices.sh THIRD_PARTY_LICENSES' on this branch by hand."
             exit 1
           fi
+
+      # Scoped to this repository, so the token cannot write anywhere else even if the
+      # job is compromised. Expires an hour after the run.
+      - name: Mint an installation token
+        id: app-token
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          app-id: ${{ secrets.PUBLISHER_APP_ID }}
+          private-key: ${{ secrets.PUBLISHER_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.head_ref }}
-          token: ${{ secrets.NOTICES_PUSH_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
@@ -70,9 +83,9 @@ jobs:
             echo "THIRD_PARTY_LICENSES is already current."
             exit 0
           fi
-          # Authored as the maintainer account that owns NOTICES_PUSH_TOKEN: the CLA
-          # check exempts it, and accepts a bot author only on a verified (signed)
-          # commit, which a plain git push cannot produce.
+          # Authored as the maintainer account the CLA check exempts. The committer is
+          # the App, but the author is what the CLA reads, and it accepts a bot author
+          # only on a verified (signed) commit, which a plain git push cannot produce.
           git config user.name "Vericto"
           git config user.email "295450070+vericto@users.noreply.github.com"
           git add THIRD_PARTY_LICENSES

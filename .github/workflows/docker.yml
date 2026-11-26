@@ -204,8 +204,8 @@ jobs:
 
       # Stored in GHCR next to the platform image and in GitHub's attestation store.
       # Its subject is the platform digest, not the multi-arch index: verify with
-      # `gh attestation verify oci://ghcr.io/vericto/vericto-proxy@<platform digest>
-      # --repo vericto/vericto-proxy --predicate-type https://spdx.dev/Document/v2.3`.
+      # `gh attestation verify oci://ghcr.io/vericto/proxy@<platform digest>
+      # --repo vericto/proxy --predicate-type https://spdx.dev/Document/v2.3`.
       - name: Attest the SBOM
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -307,7 +307,7 @@ jobs:
       # Build provenance for the published multi-arch image: a Sigstore-signed
       # attestation tying the digest to this repository, workflow and commit,
       # stored in GHCR next to the image. Verify with
-      # `gh attestation verify oci://ghcr.io/vericto/vericto-proxy:<version> --repo vericto/vericto-proxy`.
+      # `gh attestation verify oci://ghcr.io/vericto/proxy:<version> --repo vericto/proxy`.
       - name: Attest build provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
