@@ -13,7 +13,14 @@ all-features = false
 version = 2
 yanked = "deny"
 unmaintained = "all"
-ignore = []
+ignore = [
+  # RUSTSEC-2026-0543: chrono is unmaintained. Every version is affected, so there is
+  # no upgrade to take — the advisory itself says so and points at `jiff` and `time`.
+  # chrono is a direct dependency here, so moving off it is a code change with its own
+  # review, not a lockfile bump. Ignored so the gate keeps failing on things that CAN
+  # be acted on; revisit when the replacement lands, and no later than 2027-02-28.
+  "RUSTSEC-2026-0543",
+]
 
 [licenses]
 version = 2
